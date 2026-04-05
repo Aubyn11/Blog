@@ -54,6 +54,14 @@ class GitHubStorage {
     this.processQueue()
   }
 
+  // ─── 路径辅助 ───────────────────────────────────────────────
+  // 用户隔离路径：data/users/{userId}/xxx.json
+  userScopedPath(userId, filename) {
+    if (!userId) throw new Error('userId 不能为空')
+    return `data/users/${userId}/${filename}`
+  }
+
+  // ─── 读写基础方法 ────────────────────────────────────────────
   // 读取JSON文件
   async readFile(filePath) {
     try {
@@ -117,33 +125,38 @@ class GitHubStorage {
     }
   }
 
-  // 博客文章相关操作
-  async getPosts() {
-    return await this.readFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json')
+  // ─── 博客文章（按用户隔离）──────────────────────────────────
+  _postsPath(userId) {
+    return this.userScopedPath(userId, 'posts.json')
   }
 
-  async getPostById(id) {
-    const posts = await this.getPosts()
+  async getPosts(userId) {
+    return await this.readFile(this._postsPath(userId))
+  }
+
+  async getPostById(userId, id) {
+    const posts = await this.getPosts(userId)
     return posts.find(p => p.id === id)
   }
 
-  async createPost(post) {
-    const posts = await this.getPosts()
+  async createPost(userId, post) {
+    const posts = await this.getPosts(userId)
     const newPost = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       ...post,
+      authorId: userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       views: 0,
       likes: 0
     }
     posts.push(newPost)
-    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', posts)
+    await this.writeFile(this._postsPath(userId), posts)
     return newPost
   }
 
-  async updatePost(id, updates) {
-    const posts = await this.getPosts()
+  async updatePost(userId, id, updates) {
+    const posts = await this.getPosts(userId)
     const index = posts.findIndex(p => p.id === id)
     if (index === -1) throw new Error('文章不存在')
     
@@ -153,19 +166,38 @@ class GitHubStorage {
       updatedAt: new Date().toISOString()
     }
     
-    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', posts)
+    await this.writeFile(this._postsPath(userId), posts)
     return posts[index]
   }
 
-  async deletePost(id) {
-    const posts = await this.getPosts()
+  async deletePost(userId, id) {
+    const posts = await this.getPosts(userId)
     const filteredPosts = posts.filter(p => p.id !== id)
-    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', filteredPosts)
+    await this.writeFile(this._postsPath(userId), filteredPosts)
   }
 
-  // 用户相关操作
+  // 获取所有用户的文章（用于全站首页/搜索）
+  async getAllPosts() {
+    const users = await this.getUsers()
+    const allPosts = []
+    for (const user of users) {
+      try {
+        const posts = await this.getPosts(user.id)
+        allPosts.push(...posts)
+      } catch (e) {
+        // 该用户暂无文章，跳过
+      }
+    }
+    return allPosts
+  }
+
+  // ─── 用户（全局共用）────────────────────────────────────────
+  _usersPath() {
+    return process.env.GITHUB_USERS_FILE || 'data/users.json'
+  }
+
   async getUsers() {
-    return await this.readFile(process.env.GITHUB_USERS_FILE || 'data/users.json')
+    return await this.readFile(this._usersPath())
   }
 
   async getUserById(id) {
@@ -178,6 +210,11 @@ class GitHubStorage {
     return users.find(u => u.email === email)
   }
 
+  async getUserByUsername(username) {
+    const users = await this.getUsers()
+    return users.find(u => u.username === username)
+  }
+
   async createUser(user) {
     const users = await this.getUsers()
     const newUser = {
@@ -187,7 +224,7 @@ class GitHubStorage {
       updatedAt: new Date().toISOString()
     }
     users.push(newUser)
-    await this.writeFile(process.env.GITHUB_USERS_FILE || 'data/users.json', users)
+    await this.writeFile(this._usersPath(), users)
     return newUser
   }
 
@@ -202,76 +239,89 @@ class GitHubStorage {
       updatedAt: new Date().toISOString()
     }
     
-    await this.writeFile(process.env.GITHUB_USERS_FILE || 'data/users.json', users)
+    await this.writeFile(this._usersPath(), users)
     return users[index]
   }
 
-  // 文件相关操作
-  async getFiles() {
-    return await this.readFile(process.env.GITHUB_FILES_FILE || 'data/files.json')
+  // ─── 文件（按用户隔离）──────────────────────────────────────
+  _filesPath(userId) {
+    return this.userScopedPath(userId, 'files.json')
   }
 
-  async createFile(file) {
-    const files = await this.getFiles()
+  async getFiles(userId) {
+    return await this.readFile(this._filesPath(userId))
+  }
+
+  async createFile(userId, file) {
+    const files = await this.getFiles(userId)
     const newFile = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       ...file,
+      ownerId: userId,
       createdAt: new Date().toISOString()
     }
     files.push(newFile)
-    await this.writeFile(process.env.GITHUB_FILES_FILE || 'data/files.json', files)
+    await this.writeFile(this._filesPath(userId), files)
     return newFile
   }
 
-  async deleteFile(id) {
-    const files = await this.getFiles()
+  async deleteFile(userId, id) {
+    const files = await this.getFiles(userId)
     const filteredFiles = files.filter(f => f.id !== id)
-    await this.writeFile(process.env.GITHUB_FILES_FILE || 'data/files.json', filteredFiles)
+    await this.writeFile(this._filesPath(userId), filteredFiles)
   }
 
-  // 页面相关操作
-  async getPages() {
-    return await this.readFile(process.env.GITHUB_PAGES_FILE || 'data/pages.json')
+  // ─── 页面（按用户隔离）──────────────────────────────────────
+  _pagesPath(userId) {
+    return this.userScopedPath(userId, 'pages.json')
   }
 
-  async getPageById(id) {
-    const pages = await this.getPages()
+  async getPages(userId) {
+    return await this.readFile(this._pagesPath(userId))
+  }
+
+  async getPageById(userId, id) {
+    const pages = await this.getPages(userId)
     return pages.find(p => p.id === id)
   }
 
-  async createPage(page) {
-    const pages = await this.getPages()
+  async createPage(userId, page) {
+    const pages = await this.getPages(userId)
     const newPage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       ...page,
+      ownerId: userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
     pages.push(newPage)
-    await this.writeFile(process.env.GITHUB_PAGES_FILE || 'data/pages.json', pages)
+    await this.writeFile(this._pagesPath(userId), pages)
     return newPage
   }
 
-  async updatePage(id, updates) {
-    const pages = await this.getPages()
+  async updatePage(userId, id, updates) {
+    const pages = await this.getPages(userId)
     const index = pages.findIndex(p => p.id === id)
     if (index === -1) throw new Error('页面不存在')
     pages[index] = { ...pages[index], ...updates, updatedAt: new Date().toISOString() }
-    await this.writeFile(process.env.GITHUB_PAGES_FILE || 'data/pages.json', pages)
+    await this.writeFile(this._pagesPath(userId), pages)
     return pages[index]
   }
 
-  async deletePage(id) {
-    const pages = await this.getPages()
+  async deletePage(userId, id) {
+    const pages = await this.getPages(userId)
     const filtered = pages.filter(p => p.id !== id)
-    await this.writeFile(process.env.GITHUB_PAGES_FILE || 'data/pages.json', filtered)
+    await this.writeFile(this._pagesPath(userId), filtered)
   }
 
-  // 主页配置相关操作
-  async getHomeConfig() {
+  // ─── 主页配置（按用户隔离）──────────────────────────────────
+  _homeConfigPath(userId) {
+    return this.userScopedPath(userId, 'home-config.json')
+  }
+
+  async getHomeConfig(userId) {
     try {
-      const config = await this.readFile(process.env.GITHUB_HOME_CONFIG_FILE || 'data/home-config.json')
-      // readFile 在文件不存在时返回 []，这里需要返回对象
+      const config = await this.readFile(this._homeConfigPath(userId))
       if (Array.isArray(config)) return null
       return config
     } catch (error) {
@@ -279,15 +329,14 @@ class GitHubStorage {
     }
   }
 
-  async saveHomeConfig(config) {
-    await this.writeFile(process.env.GITHUB_HOME_CONFIG_FILE || 'data/home-config.json', config)
+  async saveHomeConfig(userId, config) {
+    await this.writeFile(this._homeConfigPath(userId), config)
     return config
   }
 
-  // 健康检查
+  // ─── 健康检查 ────────────────────────────────────────────────
   async healthCheck() {
     try {
-      // 测试仓库访问
       await this.throttledRequest('GET', '/repos/{owner}/{repo}', {
         owner: this.owner,
         repo: this.repo

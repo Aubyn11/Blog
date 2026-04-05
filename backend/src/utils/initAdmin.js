@@ -119,11 +119,14 @@ export const initDefaultData = async () => {
   try {
     console.log('📊 初始化默认数据...')
     
-    // 检查是否已存在文章
-    const posts = await getStorage().getPosts()
+    // 先确保管理员存在
+    const adminUser = await initAdminUser()
+
+    // 检查管理员名下是否已存在文章
+    const posts = await getStorage().getPosts(adminUser.id)
     if (posts.length === 0) {
-      // 创建欢迎文章
-      const welcomePost = await getStorage().createPost({
+      // 创建欢迎文章（挂在管理员名下）
+      const welcomePost = await getStorage().createPost(adminUser.id, {
         title: '欢迎使用个人博客系统',
         content: `# 欢迎使用个人博客系统\n\n这是一个基于GitHub数据存储的个人博客系统，具有以下特性：\n\n## 🚀 功能特性\n\n- ✅ **完全免费** - 使用GitHub仓库存储数据\n- ✅ **用户认证** - 完整的登录注册系统\n- ✅ **文章管理** - 创建、编辑、删除文章\n- ✅ **文件上传** - 支持图片等文件上传\n- ✅ **响应式设计** - 适配各种设备\n\n## 🔒 安全特性\n\n- API速率限制保护\n- JWT身份认证\n- 密码加密存储\n- CSRF防护\n\n## 💡 开始使用\n\n1. 注册新用户或使用默认管理员账户\n2. 创建您的第一篇博客文章\n3. 自定义您的个人资料\n4. 开始分享您的想法！\n\n祝您使用愉快！🎉`,
         excerpt: '欢迎使用基于GitHub数据存储的个人博客系统，这是一个功能完整、安全可靠的博客平台。',
@@ -141,10 +144,9 @@ export const initDefaultData = async () => {
   }
 }
 
-// 运行初始化
+// 运行初始化（initDefaultData 内部已包含 initAdminUser，无需重复调用）
 const runInitialization = async () => {
   try {
-    await initAdminUser()
     await initDefaultData()
   } catch (error) {
     console.error('初始化过程失败:', error)
