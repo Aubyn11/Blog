@@ -21,36 +21,6 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false,
-    rollupOptions: {
-      external: [
-        'express',
-        'cors',
-        'helmet',
-        'compression',
-        'express-rate-limit',
-        'mongoose',
-        'bcryptjs',
-        'jsonwebtoken',
-        'dotenv',
-        'octokit',
-        'multer',
-        'fs',
-        'path',
-        'url',
-        'module',
-        'crypto',
-        'http',
-        'https',
-        'stream',
-        'buffer',
-        'util',
-        'events',
-        'os',
-        'net',
-        'tls',
-        'zlib',
-      ]
-    }
+    sourcemap: false
   }
 })
