@@ -243,7 +243,7 @@ const startServer = async () => {
             }
         }
 
-        // 启动Express服务器
+        // 启动Express服务器（仅本地开发，Vercel 不执行此处）
         app.listen(PORT, () => {
             console.log(`🚀 服务器运行在端口 ${PORT}`)
             console.log(`🌐 前端地址: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
@@ -280,8 +280,9 @@ process.on('SIGINT', () => {
 // 导出 app 供 Vercel Serverless Function 使用
 export { app }
 
-// 仅在直接运行时启动服务器（本地开发），Vercel 环境不执行
-const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
+// 仅在非 Vercel 环境且直接运行时启动服务器（本地开发）
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV !== undefined
+const isDirectRun = !isVercel && process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
 if (isDirectRun) {
     startServer()
 }
