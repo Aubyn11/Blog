@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Layout from './components/Layout/Layout'
 import Home from './pages/Home/Home'
+import UserHome from './pages/UserHome/UserHome'
 import Blog from './pages/Blog/Blog'
 import Admin from './pages/Admin/Admin'
 import Auth from './pages/Auth/Auth'
@@ -71,6 +72,7 @@ function App() {
                   <Layout>
                     <Routes>
                       <Route path="/" element={<Home />} />
+                      <Route path="/u/:userId" element={<UserHome />} />
                       <Route path="/blog" element={<Blog />} />
                       <Route path="/blog/:id" element={<Blog />} />
                       <Route path="/page/:slug" element={<PageView />} />

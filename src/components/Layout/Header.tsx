@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, User, LogOut } from 'lucide-react'
+import { Menu, X, User, LogOut, Home } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const Header: React.FC = () => {
@@ -63,6 +63,15 @@ const Header: React.FC = () => {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-44 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                     <div className="py-1">
+                      {/* 我的主页 */}
+                      <Link
+                        to={`/u/${user?._id}`}
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <Home className="w-4 h-4 mr-2" />
+                        我的主页
+                      </Link>
                       {/* 进入后台管理 */}
                       <a
                         href="/admin"

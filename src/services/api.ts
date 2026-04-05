@@ -247,8 +247,9 @@ export const pageService = {
 }
 
 export const homeConfigService = {
-  async getHomeConfig(): Promise<HomeConfig | null> {
-    const response = await api.get('/home-config')
+  async getHomeConfig(userId?: string): Promise<HomeConfig | null> {
+    const params = userId ? { userId } : {}
+    const response = await api.get('/home-config', { params })
     return response.data.data
   },
 
