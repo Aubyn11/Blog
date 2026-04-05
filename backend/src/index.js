@@ -263,6 +263,13 @@ process.on('SIGINT', () => {
     process.exit(0)
 })
 
-startServer()
+// 导出 app 供 Vercel Serverless Function 使用
+export { app }
+
+// 仅在直接运行时启动服务器（本地开发），Vercel 环境不执行
+const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
+if (isDirectRun) {
+    startServer()
+}
 
 export default app
