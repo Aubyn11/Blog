@@ -102,20 +102,28 @@ const adaptPost = (post: any): Post => ({
   updatedAt: post.updatedAt
 })
 
+// 将后端用户数据适配为前端 User 类型（id -> _id）
+const adaptUser = (user: any): User => ({
+  ...user,
+  _id: user._id || user.id,
+})
+
 export const authService = {
   async login(data: LoginData): Promise<{ user: User; token: string }> {
     const response = await api.post('/auth/login', data)
-    return response.data.data
+    const result = response.data.data
+    return { ...result, user: adaptUser(result.user) }
   },
 
   async register(data: RegisterData): Promise<{ user: User; token: string }> {
     const response = await api.post('/auth/register', data)
-    return response.data.data
+    const result = response.data.data
+    return { ...result, user: adaptUser(result.user) }
   },
 
   async getCurrentUser(): Promise<User> {
     const response = await api.get('/auth/me')
-    return response.data.data
+    return adaptUser(response.data.data)
   },
 
   async logout(): Promise<void> {
