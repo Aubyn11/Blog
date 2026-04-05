@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: blog-backend
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: GITHUB_STORAGE_ENABLED
+        value: "true"
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_OWNER
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: GITHUB_DATA_BRANCH
+        value: main
+      - key: GITHUB_POSTS_FILE
+        value: data/posts.json
+      - key: GITHUB_USERS_FILE
+        value: data/users.json
+      - key: GITHUB_FILES_FILE
+        value: data/files.json
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        sync: false
+      - key: FRONTEND_URL_PROD
+        sync: false

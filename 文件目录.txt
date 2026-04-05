@@ -1,0 +1,342 @@
+
+aubyn@DESKTOP-BT4QCQ8 MINGW64 ~
+$ cat D:/Blog/backend/src/middleware/auth.js
+cat D:/Blog/backend/src/services/githubStorage.js
+import jwt from 'jsonwebtoken'
+import GitHubStorage from '../services/githubStorage.js'
+
+const storage = new GitHubStorage()
+
+// JWT认证中间件
+export const protect = async (req, res, next) => {
+  try {
+    let token
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1]
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: '访问被拒绝，请提供有效的token'
+      })
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    // 验证用户是否仍然存在且活跃
+    const user = await storage.getUserById(decoded.userId)
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: '用户不存在或账户已被禁用'
+      })
+    }
+
+    req.user = {
+      ...decoded,
+      role: user.role,
+      username: user.username
+    }
+    next()
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token已过期，请重新登录'
+      })
+    }
+
+    res.status(401).json({
+      success: false,
+      message: 'Token无效'
+    })
+  }
+}
+
+// 管理员权限检查
+export const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next()
+  } else {
+    res.status(403).json({
+      success: false,
+      message: '需要管理员权限'
+    })
+  }
+}
+
+// 可选认证（允许匿名访问，但如果有token会验证）
+export const optionalAuth = async (req, res, next) => {
+  try {
+    let token
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1]
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      const user = await storage.getUserById(decoded.userId)
+
+      if (user && user.isActive) {
+        req.user = {
+          ...decoded,
+          role: user.role,
+          username: user.username
+        }
+      }
+    }
+    next()
+  } catch (error) {
+    // 认证失败但允许继续访问（匿名模式）
+    next()
+  }
+}import { Octokit } from "octokit"
+
+class GitHubStorage {
+  constructor() {
+    if (!process.env.GITHUB_TOKEN) {
+      throw new Error('GitHub token not configured. Please set GITHUB_TOKEN in .env file')
+    }
+
+    this.octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN
+    })
+
+    this.owner = process.env.GITHUB_OWNER
+    this.repo = process.env.GITHUB_REPO
+    this.branch = process.env.GITHUB_DATA_BRANCH || 'main'
+
+    // 请求队列用于处理速率限制
+    this.requestQueue = []
+    this.isProcessing = false
+    this.lastRequestTime = 0
+  }
+
+  // 节流请求处理GitHub API速率限制
+  async throttledRequest(method, path, options = {}) {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({ method, path, options, resolve, reject })
+      this.processQueue()
+    })
+  }
+
+  async processQueue() {
+    if (this.isProcessing || this.requestQueue.length === 0) return
+
+    this.isProcessing = true
+    const request = this.requestQueue.shift()
+
+    try {
+      // 确保每秒不超过1个请求（GitHub API限制）
+      const now = Date.now()
+      const timeSinceLastRequest = now - this.lastRequestTime
+
+      if (timeSinceLastRequest < 1000) {
+        await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastRequest))
+      }
+
+      const response = await this.octokit.request(`${request.method} ${request.path}`, request.options)
+      this.lastRequestTime = Date.now()
+      request.resolve(response)
+    } catch (error) {
+      request.reject(error)
+    }
+
+    this.isProcessing = false
+    this.processQueue()
+  }
+
+  // 读取JSON文件
+  async readFile(filePath) {
+    try {
+      const response = await this.throttledRequest('GET', '/repos/{owner}/{repo}/contents/{path}', {
+        owner: this.owner,
+        repo: this.repo,
+        path: filePath,
+        ref: this.branch
+      })
+
+      // Base64解码
+      const content = Buffer.from(response.data.content, 'base64').toString('utf8')
+      return JSON.parse(content)
+    } catch (error) {
+      if (error.status === 404) {
+        // 文件不存在，返回空数据
+        console.log(`?? 文件 ${filePath} 不存在，创建空数据`)
+        return []
+      }
+      console.error('? 读取文件失败:', error.message)
+      throw error
+    }
+  }
+
+  // 写入JSON文件
+  async writeFile(filePath, data) {
+    try {
+      // 先获取当前文件的SHA（用于更新）
+      let sha = null
+      try {
+        const currentFile = await this.throttledRequest('GET', '/repos/{owner}/{repo}/contents/{path}', {
+          owner: this.owner,
+          repo: this.repo,
+          path: filePath,
+          ref: this.branch
+        })
+        sha = currentFile.data.sha
+      } catch (error) {
+        // 文件不存在，SHA为null
+        sha = null
+      }
+
+      const content = JSON.stringify(data, null, 2)
+      const contentBase64 = Buffer.from(content).toString('base64')
+
+      const response = await this.throttledRequest('PUT', '/repos/{owner}/{repo}/contents/{path}', {
+        owner: this.owner,
+        repo: this.repo,
+        path: filePath,
+        message: `Update ${filePath} at ${new Date().toISOString()}`,
+        content: contentBase64,
+        sha: sha,
+        branch: this.branch
+      })
+
+      console.log(`? 文件 ${filePath} 更新成功`)
+      return response.data
+    } catch (error) {
+      console.error('? 写入文件失败:', error.message)
+      throw error
+    }
+  }
+
+  // 博客文章相关操作
+  async getPosts() {
+    return await this.readFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json')
+  }
+
+  async getPostById(id) {
+    const posts = await this.getPosts()
+    return posts.find(p => p.id === id)
+  }
+
+  async createPost(post) {
+    const posts = await this.getPosts()
+    const newPost = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      ...post,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      views: 0,
+      likes: 0
+    }
+    posts.push(newPost)
+    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', posts)
+    return newPost
+  }
+
+  async updatePost(id, updates) {
+    const posts = await this.getPosts()
+    const index = posts.findIndex(p => p.id === id)
+    if (index === -1) throw new Error('文章不存在')
+
+    posts[index] = {
+      ...posts[index],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }
+
+    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', posts)
+    return posts[index]
+  }
+
+  async deletePost(id) {
+    const posts = await this.getPosts()
+    const filteredPosts = posts.filter(p => p.id !== id)
+    await this.writeFile(process.env.GITHUB_POSTS_FILE || 'data/posts.json', filteredPosts)
+  }
+
+  // 用户相关操作
+  async getUsers() {
+    return await this.readFile(process.env.GITHUB_USERS_FILE || 'data/users.json')
+  }
+
+  async getUserById(id) {
+    const users = await this.getUsers()
+    return users.find(u => u.id === id)
+  }
+
+  async getUserByEmail(email) {
+    const users = await this.getUsers()
+    return users.find(u => u.email === email)
+  }
+
+  async createUser(user) {
+    const users = await this.getUsers()
+    const newUser = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      ...user,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    users.push(newUser)
+    await this.writeFile(process.env.GITHUB_USERS_FILE || 'data/users.json', users)
+    return newUser
+  }
+
+  async updateUser(id, updates) {
+    const users = await this.getUsers()
+    const index = users.findIndex(u => u.id === id)
+    if (index === -1) throw new Error('用户不存在')
+
+    users[index] = {
+      ...users[index],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }
+
+    await this.writeFile(process.env.GITHUB_USERS_FILE || 'data/users.json', users)
+    return users[index]
+  }
+
+  // 文件相关操作
+  async getFiles() {
+    return await this.readFile(process.env.GITHUB_FILES_FILE || 'data/files.json')
+  }
+
+  async createFile(file) {
+    const files = await this.getFiles()
+    const newFile = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      ...file,
+      createdAt: new Date().toISOString()
+    }
+    files.push(newFile)
+    await this.writeFile(process.env.GITHUB_FILES_FILE || 'data/files.json', files)
+    return newFile
+  }
+
+  async deleteFile(id) {
+    const files = await this.getFiles()
+    const filteredFiles = files.filter(f => f.id !== id)
+    await this.writeFile(process.env.GITHUB_FILES_FILE || 'data/files.json', filteredFiles)
+  }
+
+  // 健康检查
+  async healthCheck() {
+    try {
+      // 测试仓库访问
+      await this.throttledRequest('GET', '/repos/{owner}/{repo}', {
+        owner: this.owner,
+        repo: this.repo
+      })
+      return { status: 'healthy', message: 'GitHub存储服务运行正常' }
+    } catch (error) {
+      return { status: 'unhealthy', message: `GitHub存储服务异常: ${error.message}` }
+    }
+  }
+}
+
+export default GitHubStorage
+aubyn@DESKTOP-BT4QCQ8 MINGW64 ~
+$
