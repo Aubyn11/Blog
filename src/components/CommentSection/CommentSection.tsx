@@ -271,16 +271,16 @@ const CommentForm: React.FC<CommentFormProps> = ({
 
 // 主评论区组件
 const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
-  const { state } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [replyTo, setReplyTo] = useState<Comment | null>(null)
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set())
 
-  const isLoggedIn = state.isAuthenticated
-  const currentUserId = state.user?._id
-  const isAdmin = state.user?.role === 'admin'
-  const username = state.user?.username
+  const isLoggedIn = isAuthenticated
+  const currentUserId = user?._id
+  const isAdmin = user?.role === 'admin'
+  const username = user?.username
 
   useEffect(() => {
     fetchComments()
