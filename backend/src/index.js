@@ -148,6 +148,20 @@ app.get('/api/health', async (req, res) => {
     }
 })
 
+// 诊断接口 - 检查环境变量配置（仅开发/调试用）
+app.get('/api/debug/env', (req, res) => {
+    res.json({
+        GITHUB_STORAGE_ENABLED: process.env.GITHUB_STORAGE_ENABLED || '❌ 未设置',
+        GITHUB_TOKEN: process.env.GITHUB_TOKEN ? '✅ 已设置' : '❌ 未设置',
+        GITHUB_OWNER: process.env.GITHUB_OWNER || '❌ 未设置',
+        GITHUB_REPO: process.env.GITHUB_REPO || '❌ 未设置',
+        GITHUB_DATA_BRANCH: process.env.GITHUB_DATA_BRANCH || '❌ 未设置',
+        JWT_SECRET: process.env.JWT_SECRET ? '✅ 已设置' : '❌ 未设置',
+        FRONTEND_URL: process.env.FRONTEND_URL || '❌ 未设置',
+        NODE_ENV: process.env.NODE_ENV || '❌ 未设置',
+    })
+})
+
 // 404处理
 app.use(notFound)
 
