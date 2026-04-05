@@ -1,9 +1,44 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Save, ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { Save, ArrowLeft, Eye, EyeOff, Bold, Italic, List, ListOrdered, Quote, Code, Heading1, Heading2, Heading3, Minus, Undo, Redo } from 'lucide-react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { marked } from 'marked'
+import * as DOMPurify from 'dompurify'
 import { postService } from '../../services/api'
 import { CreatePostData } from '../../types'
 import toast from 'react-hot-toast'
+
+// 配置 marked 选项
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+})
+
+// 工具栏按钮组件
+interface ToolbarButtonProps {
+  onClick: () => void
+  active?: boolean
+  disabled?: boolean
+  title: string
+  children: React.ReactNode
+}
+
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ onClick, active, disabled, title, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`p-1.5 rounded text-sm transition-colors ${
+      active
+        ? 'bg-primary-100 text-primary-700'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+    } disabled:opacity-40 disabled:cursor-not-allowed`}
+  >
+    {children}
+  </button>
+)
 
 const PostEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -12,6 +47,7 @@ const PostEditor: React.FC = () => {
 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [previewMode, setPreviewMode] = useState(false)
   const [formData, setFormData] = useState<CreatePostData>({
     title: '',
     content: '',
@@ -20,6 +56,30 @@ const PostEditor: React.FC = () => {
     status: 'draft',
   })
   const [tagInput, setTagInput] = useState('')
+
+  // 初始化 Tiptap 编辑器
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: {
+          HTMLAttributes: { class: 'bg-gray-900 text-gray-100 rounded-lg p-4 font-mono text-sm overflow-x-auto' },
+        },
+        blockquote: {
+          HTMLAttributes: { class: 'border-l-4 border-primary-400 pl-4 italic text-gray-600' },
+        },
+      }),
+    ],
+    content: formData.content,
+    onUpdate: ({ editor }) => {
+      // 将编辑器内容同步到 formData（存储为 HTML）
+      setFormData(prev => ({ ...prev, content: editor.getHTML() }))
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm sm:prose max-w-none focus:outline-none min-h-[400px] px-4 py-3',
+      },
+    },
+  })
 
   useEffect(() => {
     if (isEditing && id) {
@@ -31,13 +91,18 @@ const PostEditor: React.FC = () => {
     setLoading(true)
     try {
       const post = await postService.getPost(postId)
+      const content = post.content || ''
       setFormData({
         title: post.title,
-        content: post.content,
+        content,
         excerpt: post.excerpt,
         tags: post.tags,
         status: post.status,
       })
+      // 将已有内容加载到编辑器
+      if (editor) {
+        editor.commands.setContent(content)
+      }
     } catch (error) {
       toast.error('获取文章失败')
       navigate('/admin/posts')
@@ -45,6 +110,13 @@ const PostEditor: React.FC = () => {
       setLoading(false)
     }
   }
+
+  // 编辑器加载完成后，如果已有内容则填充
+  useEffect(() => {
+    if (editor && formData.content && editor.isEmpty) {
+      editor.commands.setContent(formData.content)
+    }
+  }, [editor, formData.content])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -68,20 +140,31 @@ const PostEditor: React.FC = () => {
     setFormData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }))
   }
 
+  // 获取纯文本用于摘要自动生成
+  const getPlainText = useCallback(() => {
+    if (editor) {
+      return editor.getText()
+    }
+    return formData.content.replace(/<[^>]+>/g, '')
+  }, [editor, formData.content])
+
   const handleSubmit = async (status: 'published' | 'draft') => {
     if (!formData.title.trim()) {
       toast.error('请输入文章标题')
       return
     }
-    if (!formData.content.trim()) {
+    const content = editor ? editor.getHTML() : formData.content
+    if (!content || content === '<p></p>') {
       toast.error('请输入文章内容')
       return
     }
 
+    const plainText = getPlainText()
     const submitData = {
       ...formData,
+      content,
       status,
-      excerpt: formData.excerpt || formData.content.substring(0, 200) + '...',
+      excerpt: formData.excerpt || plainText.substring(0, 200) + '...',
     }
 
     setSaving(true)
@@ -100,6 +183,13 @@ const PostEditor: React.FC = () => {
       setSaving(false)
     }
   }
+
+  // 生成预览 HTML（安全渲染）
+  const getPreviewHtml = useCallback(() => {
+    const content = editor ? editor.getHTML() : formData.content
+    const clean = DOMPurify.sanitize(content)
+    return clean
+  }, [editor, formData.content])
 
   if (loading) {
     return (
@@ -162,19 +252,148 @@ const PostEditor: React.FC = () => {
           />
         </div>
 
-        {/* 内容 */}
-        <div className="card p-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            文章内容 <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            name="content"
-            value={formData.content}
-            onChange={handleChange}
-            placeholder="请输入文章内容（支持 Markdown 格式）..."
-            rows={20}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm resize-y"
-          />
+        {/* 富文本编辑器 */}
+        <div className="card overflow-hidden">
+          {/* 编辑器标题栏 */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+            <span className="text-sm font-medium text-gray-700">
+              文章内容 <span className="text-red-500">*</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setPreviewMode(!previewMode)}
+              className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                previewMode
+                  ? 'bg-primary-50 border-primary-300 text-primary-700'
+                  : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+              {previewMode ? '退出预览' : '预览'}
+            </button>
+          </div>
+
+          {!previewMode ? (
+            <>
+              {/* 工具栏 */}
+              <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-gray-200 bg-white">
+                {/* 撤销/重做 */}
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().undo().run()}
+                  disabled={!editor?.can().undo()}
+                  title="撤销 (Ctrl+Z)"
+                >
+                  <Undo className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().redo().run()}
+                  disabled={!editor?.can().redo()}
+                  title="重做 (Ctrl+Y)"
+                >
+                  <Redo className="w-4 h-4" />
+                </ToolbarButton>
+
+                <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                {/* 标题 */}
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+                  active={editor?.isActive('heading', { level: 1 })}
+                  title="一级标题"
+                >
+                  <Heading1 className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                  active={editor?.isActive('heading', { level: 2 })}
+                  title="二级标题"
+                >
+                  <Heading2 className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                  active={editor?.isActive('heading', { level: 3 })}
+                  title="三级标题"
+                >
+                  <Heading3 className="w-4 h-4" />
+                </ToolbarButton>
+
+                <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                {/* 文本格式 */}
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleBold().run()}
+                  active={editor?.isActive('bold')}
+                  title="加粗 (Ctrl+B)"
+                >
+                  <Bold className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleItalic().run()}
+                  active={editor?.isActive('italic')}
+                  title="斜体 (Ctrl+I)"
+                >
+                  <Italic className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleCode().run()}
+                  active={editor?.isActive('code')}
+                  title="行内代码"
+                >
+                  <Code className="w-4 h-4" />
+                </ToolbarButton>
+
+                <div className="w-px h-5 bg-gray-300 mx-1" />
+
+                {/* 列表 */}
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                  active={editor?.isActive('bulletList')}
+                  title="无序列表"
+                >
+                  <List className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                  active={editor?.isActive('orderedList')}
+                  title="有序列表"
+                >
+                  <ListOrdered className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+                  active={editor?.isActive('blockquote')}
+                  title="引用"
+                >
+                  <Quote className="w-4 h-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+                  active={editor?.isActive('codeBlock')}
+                  title="代码块"
+                >
+                  <span className="text-xs font-mono font-bold px-0.5">{'</>'}</span>
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+                  title="分割线"
+                >
+                  <Minus className="w-4 h-4" />
+                </ToolbarButton>
+              </div>
+
+              {/* 编辑区域 */}
+              <div className="min-h-[400px] border-0">
+                <EditorContent editor={editor} />
+              </div>
+            </>
+          ) : (
+            /* 预览区域 */
+            <div
+              className="prose prose-sm sm:prose max-w-none px-6 py-4 min-h-[400px]"
+              dangerouslySetInnerHTML={{ __html: getPreviewHtml() }}
+            />
+          )}
         </div>
 
         {/* 摘要 */}

@@ -79,13 +79,31 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }))
 
-// 速率限制（测试阶段已禁用，上线前记得开启）
-// const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })
-// const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5 })
-// const apiLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 30 })
-// app.use('/api/auth/', authLimiter)
-// app.use('/api/', apiLimiter)
-// app.use('/', generalLimiter)
+// 速率限制
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15分钟
+    max: 200,                  // 全局：每IP最多200次
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: '请求过于频繁，请稍后再试' }
+})
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15分钟
+    max: 10,                   // 认证接口：每IP最多10次（防暴力破解）
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: '登录尝试过于频繁，请15分钟后再试' }
+})
+const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,  // 1分钟
+    max: 60,                   // API接口：每IP每分钟最多60次
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: '请求过于频繁，请稍后再试' }
+})
+app.use('/api/auth/', authLimiter)
+app.use('/api/', apiLimiter)
+app.use('/', generalLimiter)
 
 // 解析请求体
 app.use(express.json({ limit: '10mb' }))
@@ -148,8 +166,11 @@ app.get('/api/health', async (req, res) => {
     }
 })
 
-// 诊断接口 - 检查环境变量配置（仅开发/调试用）
+// 诊断接口 - 仅在开发环境可访问
 app.get('/api/debug/env', (req, res) => {
+    if (process.env.NODE_ENV !== 'development') {
+        return res.status(403).json({ error: '该接口仅在开发环境可用' })
+    }
     res.json({
         GITHUB_STORAGE_ENABLED: process.env.GITHUB_STORAGE_ENABLED || '❌ 未设置',
         GITHUB_TOKEN: process.env.GITHUB_TOKEN ? '✅ 已设置' : '❌ 未设置',

@@ -1,29 +1,71 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Calendar, User, Eye, Heart, Tag, Search } from 'lucide-react'
+import { Calendar, User, Eye, Heart, Tag, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { marked } from 'marked'
+import * as DOMPurify from 'dompurify'
 import { Post } from '../../types'
 import { postService } from '../../services/api'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+})
+
+// 安全渲染 Markdown 内容
+const renderMarkdown = (content: string): string => {
+  try {
+    const html = marked.parse(content) as string
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [
+        'h1','h2','h3','h4','h5','h6','p','br','strong','em','del','code','pre',
+        'blockquote','ul','ol','li','a','img','table','thead','tbody','tr','th','td',
+        'hr','div','span'
+      ],
+      ALLOWED_ATTR: ['href','src','alt','title','class','target','rel'],
+    })
+  } catch {
+    return DOMPurify.sanitize(content)
+  }
+}
+
+const POSTS_PER_PAGE = 9
 
 const BlogList: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, selectedTag])
 
   useEffect(() => {
     fetchPosts()
-  }, [search, selectedTag])
+  }, [search, selectedTag, currentPage])
 
   const fetchPosts = async () => {
     try {
       setLoading(true)
       const response = await postService.getPosts({
-        page: 1,
-        limit: 12,
+        page: currentPage,
+        limit: POSTS_PER_PAGE,
         search: search || undefined,
         tag: selectedTag || undefined
       })
       setPosts(response.data)
+      // 使用后端返回的分页信息
+      if (response.totalPages) {
+        setTotalPages(response.totalPages)
+        setTotal(response.total || response.data.length)
+      } else {
+        setTotalPages(1)
+        setTotal(response.data.length)
+      }
     } catch (error) {
       console.error('Failed to fetch posts:', error)
     } finally {
@@ -116,70 +158,134 @@ const BlogList: React.FC = () => {
           <p className="text-gray-500">还没有发布任何博客文章</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {posts.map(post => (
-            <Link
-              key={post._id}
-              to={`/blog/${post._id}`}
-              className="card p-6 hover:shadow-md transition-shadow duration-200"
-            >
-              {post.coverImage && (
-                <div className="mb-4">
-                  <img
-                    src={post.coverImage}
-                    alt={post.title}
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {posts.map(post => (
+              <Link
+                key={post._id}
+                to={`/blog/${post._id}`}
+                className="card p-6 hover:shadow-md transition-shadow duration-200"
+              >
+                {post.coverImage && (
+                  <div className="mb-4">
+                    <img
+                      src={post.coverImage}
+                      alt={post.title}
+                      loading="lazy"
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                  </div>
+                )}
+                
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+                  {post.title}
+                </h3>
+                
+                <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                  {post.excerpt}
+                </p>
+                
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center">
+                      <User className="w-4 h-4 mr-1" />
+                      <span>{post.author.username}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Calendar className="w-4 h-4 mr-1" />
+                      <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center">
+                      <Eye className="w-4 h-4 mr-1" />
+                      <span>{post.views}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Heart className="w-4 h-4 mr-1" />
+                      <span>{post.likes}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-              
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                {post.title}
-              </h3>
-              
-              <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                {post.excerpt}
-              </p>
-              
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center">
-                    <User className="w-4 h-4 mr-1" />
-                    <span>{post.author.username}</span>
+                
+                {post.tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {post.tags.slice(0, 3).map(tag => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center px-2 py-1 rounded text-xs bg-primary-100 text-primary-800"
+                      >
+                        <Tag className="w-3 h-3 mr-1" />
+                        {tag}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex items-center">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center">
-                    <Eye className="w-4 h-4 mr-1" />
-                    <span>{post.views}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Heart className="w-4 h-4 mr-1" />
-                    <span>{post.likes}</span>
-                  </div>
-                </div>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {/* 分页组件 */}
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                上一页
+              </button>
+
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    // 显示首页、末页、当前页及其前后各1页
+                    return page === 1 || page === totalPages ||
+                      Math.abs(page - currentPage) <= 1
+                  })
+                  .reduce<(number | '...')[]>((acc, page, idx, arr) => {
+                    if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                      acc.push('...')
+                    }
+                    acc.push(page)
+                    return acc
+                  }, [])
+                  .map((item, idx) =>
+                    item === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        onClick={() => setCurrentPage(item as number)}
+                        className={`w-9 h-9 text-sm font-medium rounded-md border transition-colors ${
+                          currentPage === item
+                            ? 'bg-primary-600 border-primary-600 text-white'
+                            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
               </div>
-              
-              {post.tags.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {post.tags.slice(0, 3).map(tag => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2 py-1 rounded text-xs bg-primary-100 text-primary-800"
-                    >
-                      <Tag className="w-3 h-3 mr-1" />
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Link>
-          ))}
-        </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                下一页
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </button>
+            </div>
+          )}
+
+          {/* 文章总数提示 */}
+          <p className="mt-4 text-center text-sm text-gray-400">
+            共 {total} 篇文章，第 {currentPage} / {totalPages} 页
+          </p>
+        </>
       )}
     </div>
   )
@@ -282,14 +388,16 @@ const BlogDetail: React.FC = () => {
           <img
             src={post.coverImage}
             alt={post.title}
+            loading="lazy"
             className="w-full h-64 md:h-96 object-cover rounded-lg"
           />
         </div>
       )}
 
-      <div 
+      {/* 安全渲染 Markdown 内容 */}
+      <div
         className="prose prose-lg max-w-none"
-        dangerouslySetInnerHTML={{ __html: post.content }}
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
       />
 
       <div className="mt-12 pt-8 border-t border-gray-200">
