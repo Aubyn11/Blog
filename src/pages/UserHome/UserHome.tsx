@@ -57,8 +57,10 @@ const UserHome: React.FC = () => {
   const color = COLOR_MAP[config.accentColor || 'indigo'] || COLOR_MAP.indigo
   const avatarSrc = config.avatarLocalData || config.avatarUrl
 
-  // 博客链接：指向该用户的文章列表
+  // 各快捷导航链接
   const blogLink = `/blog?userId=${userId}`
+  const tagsLink = `/blog?userId=${userId}#tags`
+  const latestLink = `/blog?userId=${userId}&sort=latest`
 
   if (loading) {
     return (
@@ -176,7 +178,7 @@ const UserHome: React.FC = () => {
           </Link>
 
           <Link
-            to={blogLink}
+            to={tagsLink}
             className="group flex items-start gap-4 p-5 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all"
           >
             <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -189,7 +191,7 @@ const UserHome: React.FC = () => {
           </Link>
 
           <Link
-            to={blogLink}
+            to={latestLink}
             className="group flex items-start gap-4 p-5 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:shadow-md transition-all"
           >
             <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">

@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import React, { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useSearchParams, useLocation } from 'react-router-dom'
 import { Calendar, User, Eye, Heart, Tag, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { marked } from 'marked'
 import * as DOMPurify from 'dompurify'
+
+// DOMPurify 兼容包装（支持 ESM 和 CJS 两种导入方式）
+const purify = (DOMPurify as any).default ?? DOMPurify
 import { Post } from '../../types'
 import { postService } from '../../services/api'
 
@@ -16,7 +19,7 @@ marked.setOptions({
 const renderMarkdown = (content: string): string => {
   try {
     const html = marked.parse(content) as string
-    return DOMPurify.sanitize(html, {
+    return purify.sanitize(html, {
       ALLOWED_TAGS: [
         'h1','h2','h3','h4','h5','h6','p','br','strong','em','del','code','pre',
         'blockquote','ul','ol','li','a','img','table','thead','tbody','tr','th','td',
@@ -25,7 +28,7 @@ const renderMarkdown = (content: string): string => {
       ALLOWED_ATTR: ['href','src','alt','title','class','target','rel'],
     })
   } catch {
-    return DOMPurify.sanitize(content)
+    return purify.sanitize(content)
   }
 }
 
@@ -39,6 +42,19 @@ const BlogList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [searchParams] = useSearchParams()
+  const location = useLocation()
+  const tagsRef = useRef<HTMLDivElement>(null)
+
+  // 初始化时读取 URL 参数
+  useEffect(() => {
+    const tagParam = searchParams.get('tag')
+    if (tagParam) setSelectedTag(tagParam)
+    // 如果是来自分类标签快捷入口，滚动到标签区域
+    if (location.hash === '#tags') {
+      setTimeout(() => tagsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+    }
+  }, [])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -51,14 +67,18 @@ const BlogList: React.FC = () => {
   const fetchPosts = async () => {
     try {
       setLoading(true)
+      // 支持 URL 中的 userId 和 sort 参数
+      const userId = searchParams.get('userId') || undefined
+      const sort = searchParams.get('sort') || undefined
       const response = await postService.getPosts({
         page: currentPage,
         limit: POSTS_PER_PAGE,
         search: search || undefined,
-        tag: selectedTag || undefined
-      })
+        tag: selectedTag || undefined,
+        userId,
+        sort,
+      } as any)
       setPosts(response.data)
-      // 使用后端返回的分页信息
       if (response.totalPages) {
         setTotalPages(response.totalPages)
         setTotal(response.total || response.data.length)
@@ -122,8 +142,8 @@ const BlogList: React.FC = () => {
           </select>
         </div>
 
-        {/* Tags */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        {/* Tags 区域，支持锁定到此处 */}
+        <div ref={tagsRef} id="tags" className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => setSelectedTag('')}
             className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -295,10 +315,16 @@ const BlogDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
+  const [liked, setLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState(0)
+  const [liking, setLiking] = useState(false)
 
   useEffect(() => {
     if (id) {
       fetchPost()
+      // 从 localStorage 读取本地点赞状态
+      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '[]')
+      setLiked(likedPosts.includes(id))
     }
   }, [id])
 
@@ -307,10 +333,34 @@ const BlogDetail: React.FC = () => {
       setLoading(true)
       const postData = await postService.getPost(id!)
       setPost(postData)
+      setLikeCount(typeof postData.likes === 'number' ? postData.likes : (postData.likes as any)?.length || 0)
     } catch (error) {
       console.error('Failed to fetch post:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleLike = async () => {
+    if (liking || !id) return
+    setLiking(true)
+    try {
+      const result = await postService.likePost(id)
+      const newLiked = (result as any).liked ?? !liked
+      const newCount = (result as any).likes ?? (newLiked ? likeCount + 1 : Math.max(0, likeCount - 1))
+      setLiked(newLiked)
+      setLikeCount(newCount)
+      // 将点赞状态存入 localStorage
+      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '[]')
+      if (newLiked) {
+        localStorage.setItem('likedPosts', JSON.stringify([...new Set([...likedPosts, id])]))
+      } else {
+        localStorage.setItem('likedPosts', JSON.stringify(likedPosts.filter((pid: string) => pid !== id)))
+      }
+    } catch (error) {
+      console.error('Like failed:', error)
+    } finally {
+      setLiking(false)
     }
   }
 
@@ -363,8 +413,18 @@ const BlogDetail: React.FC = () => {
             <span>{post.views} 阅读</span>
           </div>
           <div className="flex items-center mb-2">
-            <Heart className="w-4 h-4 mr-2" />
-            <span>{post.likes} 点赞</span>
+            <button
+              onClick={handleLike}
+              disabled={liking}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-all ${
+                liked
+                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              } disabled:opacity-50`}
+            >
+              <Heart className={`w-4 h-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
+              <span>{likeCount} 点赞</span>
+            </button>
           </div>
         </div>
 

@@ -6,6 +6,29 @@ const getStorage = () => {
   return _storage
 }
 
+// ─── 内存缓存层（减少 GitHub API 调用）────────────────────────
+// 缓存全站文章列表，TTL 5分钟
+const CACHE_TTL = 5 * 60 * 1000 // 5分钟
+let _allPostsCache = null
+let _allPostsCacheTime = 0
+
+const getCachedAllPosts = async () => {
+  const now = Date.now()
+  if (_allPostsCache && (now - _allPostsCacheTime) < CACHE_TTL) {
+    return _allPostsCache
+  }
+  const posts = await getStorage().getAllPosts()
+  _allPostsCache = posts
+  _allPostsCacheTime = now
+  return posts
+}
+
+// 写操作后使缓存失效
+const invalidateCache = () => {
+  _allPostsCache = null
+  _allPostsCacheTime = 0
+}
+
 // 获取文章列表
 // 支持 ?userId=xxx 查看指定用户的文章，不传则返回全站文章
 export const getPosts = async (req, res) => {
@@ -17,8 +40,8 @@ export const getPosts = async (req, res) => {
       // 查看指定用户的文章
       posts = await getStorage().getPosts(queryUserId)
     } else {
-      // 全站文章（聚合所有用户）
-      posts = await getStorage().getAllPosts()
+      // 全站文章（使用缓存）
+      posts = await getCachedAllPosts()
     }
 
     // 未登录或非管理员只能看已发布的文章
@@ -71,8 +94,8 @@ export const getPostById = async (req, res) => {
     if (queryUserId) {
       post = await getStorage().getPostById(queryUserId, id)
     } else {
-      // 全站查找
-      const allPosts = await getStorage().getAllPosts()
+      // 全站查找（使用缓存）
+      const allPosts = await getCachedAllPosts()
       post = allPosts.find(p => p.id === id)
     }
 
@@ -118,6 +141,9 @@ export const createPost = async (req, res) => {
       authorName: req.user.username || '匿名用户'
     })
 
+    // 使缓存失效
+    invalidateCache()
+
     res.status(201).json({ success: true, message: '文章创建成功', data: newPost })
   } catch (error) {
     console.error('创建文章失败:', error)
@@ -132,8 +158,8 @@ export const updatePost = async (req, res) => {
     const userId = req.user.userId
     const isAdmin = req.user.role === 'admin'
 
-    // 先找到文章确认归属
-    const allPosts = await getStorage().getAllPosts()
+    // 先找到文章确认归属（使用缓存）
+    const allPosts = await getCachedAllPosts()
     const existingPost = allPosts.find(p => p.id === id)
     if (!existingPost) {
       return res.status(404).json({ success: false, message: '文章不存在' })
@@ -144,6 +170,8 @@ export const updatePost = async (req, res) => {
     }
 
     const updatedPost = await getStorage().updatePost(existingPost.authorId, id, req.body)
+    // 使缓存失效
+    invalidateCache()
     res.json({ success: true, message: '文章更新成功', data: updatedPost })
   } catch (error) {
     console.error('更新文章失败:', error)
@@ -158,7 +186,7 @@ export const deletePost = async (req, res) => {
     const userId = req.user.userId
     const isAdmin = req.user.role === 'admin'
 
-    const allPosts = await getStorage().getAllPosts()
+    const allPosts = await getCachedAllPosts()
     const existingPost = allPosts.find(p => p.id === id)
     if (!existingPost) {
       return res.status(404).json({ success: false, message: '文章不存在' })
@@ -169,6 +197,8 @@ export const deletePost = async (req, res) => {
     }
 
     await getStorage().deletePost(existingPost.authorId, id)
+    // 使缓存失效
+    invalidateCache()
     res.json({ success: true, message: '文章删除成功' })
   } catch (error) {
     console.error('删除文章失败:', error)
@@ -176,10 +206,12 @@ export const deletePost = async (req, res) => {
   }
 }
 
-// 点赞文章
+// 点赞/取消点赞文章（支持去重，基于 IP + userId 双重防刷）
 export const likePost = async (req, res) => {
   try {
     const { id } = req.params
+    // 用登录用户ID或IP作为去重标识
+    const clientId = req.user?.userId || req.ip || req.headers['x-forwarded-for'] || 'anonymous'
 
     const allPosts = await getStorage().getAllPosts()
     const post = allPosts.find(p => p.id === id)
@@ -187,11 +219,35 @@ export const likePost = async (req, res) => {
       return res.status(404).json({ success: false, message: '文章不存在' })
     }
 
+    // likedBy 存储已点赞的用户标识列表
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : []
+    const alreadyLiked = likedBy.includes(clientId)
+
+    let newLikedBy
+    let newLikes
+    if (alreadyLiked) {
+      // 取消点赞
+      newLikedBy = likedBy.filter(uid => uid !== clientId)
+      newLikes = Math.max(0, (post.likes || 0) - 1)
+    } else {
+      // 点赞
+      newLikedBy = [...likedBy, clientId]
+      newLikes = (post.likes || 0) + 1
+    }
+
+    // 使缓存失效
+    invalidateCache()
+
     const updatedPost = await getStorage().updatePost(post.authorId, id, {
-      likes: (post.likes || 0) + 1
+      likes: newLikes,
+      likedBy: newLikedBy
     })
 
-    res.json({ success: true, message: '点赞成功', data: { likes: updatedPost.likes } })
+    res.json({
+      success: true,
+      message: alreadyLiked ? '取消点赞成功' : '点赞成功',
+      data: { likes: updatedPost.likes, liked: !alreadyLiked }
+    })
   } catch (error) {
     console.error('点赞失败:', error)
     res.status(500).json({ success: false, message: '点赞失败', error: error.message })
@@ -207,9 +263,7 @@ export const searchPosts = async (req, res) => {
       return res.status(400).json({ success: false, message: '搜索关键词不能为空' })
     }
 
-    let posts = await getStorage().getAllPosts()
-
-    // 只搜索已发布的文章（全站搜索）
+    let posts = await getCachedAllPosts()
     posts = posts.filter(post => post.status === 'published')
 
     const searchResults = posts.filter(post =>

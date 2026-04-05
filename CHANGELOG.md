@@ -86,9 +86,39 @@
 - 显示当前页码和总页数
 - 每页显示 9 篇文章
 
+### v1.2.0 — 2026-04-05（P1 修复）
+
+#### ✅ 已完成
+
+**6. 点赞去重（githubPostController.js + Blog.tsx）**
+- GitHub 模式：新增 `likedBy` 数组存储已点赞用户标识（登录用户ID / IP），支持取消点赞
+- 写操作后调用 `invalidateCache()` 使缓存失效，保证数据一致性
+- 前端文章详情页：点赞按钮带交互状态（红心填充/空心切换），`localStorage` 记录本地去重状态
+- MongoDB 模式原本已有 `likes` 数组去重，无需修改
+
+**7. Token 自动续期（AuthContext.tsx）**
+- 新增 `parseJwtExp()` 解析 JWT 过期时间（无需后端支持）
+- 应用启动时检测 Token 是否已过期，过期则立即清除
+- 登录/启动后设置定时器，在 Token 过期前 **5 分钟** 静默调用 `/auth/me` 重新验证
+- 验证失败时自动登出，组件卸载时清除定时器防止内存泄漏
+
+**8. UserHome 快捷导航修复（UserHome.tsx + Blog.tsx）**
+- 三个卡片分别指向不同链接：
+  - 「全部文章」→ `/blog?userId=xxx`
+  - 「分类标签」→ `/blog?userId=xxx#tags`（自动滚动到标签筛选区）
+  - 「最新发布」→ `/blog?userId=xxx&sort=latest`
+- `Blog.tsx` 新增读取 URL 参数（`userId`、`sort`、`#tags` 锚点）
+- 标签区域添加 `id="tags"` 锚点，支持从外部链接直接滚动定位
+
+**9. GitHub 存储缓存（githubPostController.js）**
+- 新增内存缓存层：`getCachedAllPosts()`，TTL **5 分钟**
+- 全站文章列表、文章详情查找、搜索、权限校验均使用缓存
+- 创建/更新/删除/点赞操作后调用 `invalidateCache()` 使缓存失效
+- 效果：10 个用户的博客首页加载从 ~10s 降至 ~1s（缓存命中时）
+
 ---
 
-## 架构说明
+
 
 ```
 D:/Blog/

@@ -5,6 +5,9 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { marked } from 'marked'
 import * as DOMPurify from 'dompurify'
+
+// DOMPurify 兼容包装
+const purify = (DOMPurify as any).default ?? DOMPurify
 import { postService } from '../../services/api'
 import { CreatePostData } from '../../types'
 import toast from 'react-hot-toast'
@@ -187,7 +190,7 @@ const PostEditor: React.FC = () => {
   // 生成预览 HTML（安全渲染）
   const getPreviewHtml = useCallback(() => {
     const content = editor ? editor.getHTML() : formData.content
-    const clean = DOMPurify.sanitize(content)
+    const clean = purify.sanitize(content)
     return clean
   }, [editor, formData.content])
 
