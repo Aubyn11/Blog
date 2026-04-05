@@ -1,14 +1,16 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, User, LogOut, Home, Sun, Moon } from 'lucide-react'
+import { Menu, X, User, LogOut, Home, Sun, Moon, Languages } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useI18n } from '../../contexts/I18nContext'
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { locale, setLocale } = useI18n()
   const location = useLocation()
 
   const navigation = [
@@ -57,6 +59,15 @@ const Header: React.FC = () => {
               title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
             >
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+
+            {/* 语言切换 */}
+            <button
+              onClick={() => setLocale(locale === 'zh' ? 'en' : 'zh')}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-medium"
+              title={locale === 'zh' ? 'Switch to English' : '切换到中文'}
+            >
+              {locale === 'zh' ? 'EN' : '中'}
             </button>
             {isAuthenticated ? (
               <div className="relative">

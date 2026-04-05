@@ -31,6 +31,8 @@ import githubCommentRoutes from './routes/githubComments.js'
 import homeConfigRoutes from './routes/homeConfig.js'
 import rssRoutes from './routes/rss.js'
 import githubRssRoutes from './routes/githubRss.js'
+import seriesRoutes from './routes/series.js'
+import importExportRoutes from './routes/importExport.js'
 
 // 导入中间件
 import { errorHandler } from './middleware/errorHandler.js'
@@ -128,6 +130,8 @@ if (useGitHubStorage) {
     // GitHub模式下 /api/auth 也指向 githubUserRoutes（兼容前端调用）
     app.use('/api/auth', githubUserRoutes)
     app.use('/api/rss', githubRssRoutes)
+    app.use('/api/series', seriesRoutes)
+    app.use('/api', importExportRoutes)
 } else {
     console.log('🗄️ 使用MongoDB路由')
     app.use('/api/posts', postRoutes)
@@ -137,6 +141,8 @@ if (useGitHubStorage) {
     // MongoDB模式下使用原有认证路由
     app.use('/api/auth', authRoutes)
     app.use('/api/rss', rssRoutes)
+    app.use('/api/series', seriesRoutes)
+    app.use('/api', importExportRoutes)
 }
 
 // 健康检查端点

@@ -10,6 +10,7 @@ import Auth from './pages/Auth/Auth'
 import PageView from './pages/PageView/PageView'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { I18nProvider } from './contexts/I18nContext'
 
 // 全局错误边界，防止子组件崩溃导致整个应用白屏
 class ErrorBoundary extends React.Component<
@@ -56,8 +57,9 @@ class ErrorBoundary extends React.Component<
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
+      <I18nProvider>
+        <ThemeProvider>
+          <AuthProvider>
           <Router>
           <Routes>
             {/* 后台管理：独立布局，无公共 Header/Footer */}
@@ -88,6 +90,7 @@ function App() {
         </Router>
       </AuthProvider>
     </ThemeProvider>
+  </I18nProvider>
     </ErrorBoundary>
   )
 }

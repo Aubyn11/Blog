@@ -1,5 +1,7 @@
 import Comment from '../models/Comment.js'
 import Post from '../models/Post.js'
+import User from '../models/User.js'
+import { sendNewCommentNotification, sendReplyNotification } from '../services/emailService.js'
 
 // 获取文章的评论列表（树形结构）
 export const getComments = async (req, res) => {
@@ -110,6 +112,40 @@ export const createComment = async (req, res) => {
     const populated = await Comment.findById(comment._id)
       .populate('author', 'username avatar')
       .lean()
+
+    // 发送邮件通知（异步，不阻塞响应）
+    try {
+      const commentAuthorName = req.user?.username || guestName?.trim() || '匿名用户'
+      if (!parentId) {
+        // 新评论：通知文章作者
+        const postAuthor = await User.findById(post.author).select('email username')
+        if (postAuthor && postAuthor.email) {
+          sendNewCommentNotification({
+            postTitle: post.title,
+            postId: postId,
+            commentAuthor: commentAuthorName,
+            commentContent: content.trim().slice(0, 200),
+            authorEmail: postAuthor.email
+          }).catch(() => {})
+        }
+      } else {
+        // 回复：通知被回复的评论者（如果是注册用户）
+        const parentComment = await Comment.findById(parentId).populate('author', 'email username')
+        if (parentComment?.author?.email) {
+          sendReplyNotification({
+            postTitle: post.title,
+            postId: postId,
+            replyAuthor: commentAuthorName,
+            replyContent: content.trim().slice(0, 200),
+            recipientEmail: parentComment.author.email,
+            recipientName: parentComment.author.username
+          }).catch(() => {})
+        }
+      }
+    } catch (emailErr) {
+      // 邮件通知失败不影响评论发表
+      console.warn('邮件通知发送失败:', emailErr.message)
+    }
 
     res.status(201).json({
       success: true,

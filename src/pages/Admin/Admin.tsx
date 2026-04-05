@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, FolderOpen, Layout, ChevronLeft,
-  ChevronRight, LogOut, User, ExternalLink, Menu, Home
+  ChevronRight, LogOut, User, ExternalLink, Menu, Home, BookOpen, ArrowDownUp
 } from 'lucide-react'
 import Dashboard from './Dashboard'
 import PostEditor from './PostEditor'
@@ -11,15 +11,19 @@ import FileManager from './FileManager'
 import PageList from './PageList'
 import PageDesigner from './PageDesigner'
 import HomeSettings from './HomeSettings'
+import SeriesManager from './SeriesManager'
+import ImportExport from './ImportExport'
 import { useAuth } from '../../contexts/AuthContext'
 
 // 侧边栏导航项
 const NAV_ITEMS = [
   { path: '/admin',              label: '仪表盘',  icon: LayoutDashboard, exact: true },
   { path: '/admin/posts',        label: '文章管理', icon: FileText },
+  { path: '/admin/series',       label: '文章系列', icon: BookOpen },
   { path: '/admin/files',        label: '文件管理', icon: FolderOpen },
   { path: '/admin/pages',        label: '页面设计', icon: Layout },
   { path: '/admin/home-settings',label: '主页设置', icon: Home },
+  { path: '/admin/import-export',label: '导入/导出', icon: ArrowDownUp },
 ]
 
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -175,6 +179,8 @@ const Admin: React.FC = () => {
         <Route path="pages/new" element={<PageDesigner />} />
         <Route path="pages/edit/:id" element={<PageDesigner />} />
         <Route path="home-settings" element={<HomeSettings />} />
+        <Route path="series" element={<SeriesManager />} />
+        <Route path="import-export" element={<ImportExport />} />
       </Routes>
     </AdminLayout>
   )

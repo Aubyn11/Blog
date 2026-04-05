@@ -218,3 +218,43 @@ D:/Blog/
 - ✅ 骨架屏加载动画
 - ✅ 双存储模式（MongoDB + GitHub）均支持
 
+
+---
+
+## v1.5.0 — 2026-04-05（P3 长期规划）
+
+### ✅ 已完成
+
+**18. 文章系列/专栏**
+- 后端：新增 `Series` MongoDB 模型（标题、描述、封面、文章列表、排序、状态）
+- 后端：`seriesController.js` 实现完整 CRUD + 添加/移除文章接口
+- 后端：`/api/series` 路由注册（双存储模式均支持）
+- 前端：`SeriesManager.tsx` 管理页面，支持创建/编辑/删除/发布切换/展开查看文章列表
+- 后台侧边栏新增「文章系列」菜单项
+
+**19. 多语言 i18n**
+- 新增 `src/contexts/I18nContext.tsx`，内置中英文翻译字典
+- `useI18n()` Hook 提供 `t(key)` 翻译函数
+- 语言偏好持久化到 localStorage，首次访问跟随浏览器语言
+- Header 添加 中/EN 切换按钮
+
+**20. PWA 支持**
+- 安装 `vite-plugin-pwa`，构建时自动生成 sw.js + workbox
+- manifest.webmanifest 配置：名称、主题色、图标、standalone 模式
+- Service Worker 缓存策略：API NetworkFirst，图片 CacheFirst
+- index.html 添加 PWA meta 标签，支持 iOS 添加到主屏幕
+
+**21. 邮件通知**
+- 新增 `emailService.js`，使用 nodemailer
+- 新评论通知文章作者，新回复通知被回复用户
+- 未配置 SMTP 时优雅降级，异步发送不阻塞响应
+
+**22. 导入/导出**
+- 导出：Markdown ZIP（含 Front Matter）+ JSON 格式
+- 导入：单个 Markdown 文件 + 批量 JSON 文件
+- 导入文章默认保存为草稿
+- 前端 ImportExport.tsx 管理页面，显示批量导入结果
+
+### 新增依赖
+- 前端：vite-plugin-pwa
+- 后端：nodemailer、archiver
