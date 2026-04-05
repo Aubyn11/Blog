@@ -20,12 +20,14 @@ import authRoutes from './routes/auth.js'
 import postRoutes from './routes/posts.js'
 import fileRoutes from './routes/files.js'
 import userRoutes from './routes/users.js'
+import commentRoutes from './routes/comments.js'
 
 // 导入GitHub存储路由（如果启用）
 import githubPostRoutes from './routes/githubPosts.js'
 import githubUserRoutes from './routes/githubUsers.js'
 import githubFileRoutes from './routes/githubFiles.js'
 import githubPageRoutes from './routes/githubPages.js'
+import githubCommentRoutes from './routes/githubComments.js'
 import homeConfigRoutes from './routes/homeConfig.js'
 
 // 导入中间件
@@ -116,6 +118,7 @@ app.use('/uploads', express.static('uploads'))
 if (useGitHubStorage) {
     console.log('📡 使用GitHub存储路由')
     app.use('/api/posts', githubPostRoutes)
+    app.use('/api/posts/:postId/comments', githubCommentRoutes)
     app.use('/api/users', githubUserRoutes)
     app.use('/api/files', githubFileRoutes)
     app.use('/api/pages', githubPageRoutes)
@@ -125,6 +128,7 @@ if (useGitHubStorage) {
 } else {
     console.log('🗄️ 使用MongoDB路由')
     app.use('/api/posts', postRoutes)
+    app.use('/api/posts/:postId/comments', commentRoutes)
     app.use('/api/users', userRoutes)
     app.use('/api/files', fileRoutes)
     // MongoDB模式下使用原有认证路由

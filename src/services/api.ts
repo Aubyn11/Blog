@@ -5,6 +5,8 @@ import {
   File, 
   Page,
   HomeConfig,
+  Comment,
+  CreateCommentData,
   LoginData, 
   RegisterData, 
   CreatePostData,
@@ -263,6 +265,27 @@ export const homeConfigService = {
 
   async saveHomeConfig(config: HomeConfig): Promise<HomeConfig> {
     const response = await api.put('/home-config', config)
+    return response.data.data
+  }
+}
+
+export const commentService = {
+  async getComments(postId: string): Promise<Comment[]> {
+    const response = await api.get(`/posts/${postId}/comments`)
+    return response.data.data || []
+  },
+
+  async createComment(postId: string, data: CreateCommentData): Promise<Comment> {
+    const response = await api.post(`/posts/${postId}/comments`, data)
+    return response.data.data
+  },
+
+  async deleteComment(postId: string, commentId: string): Promise<void> {
+    await api.delete(`/posts/${postId}/comments/${commentId}`)
+  },
+
+  async likeComment(postId: string, commentId: string): Promise<{ likes: number }> {
+    const response = await api.post(`/posts/${postId}/comments/${commentId}/like`)
     return response.data.data
   }
 }

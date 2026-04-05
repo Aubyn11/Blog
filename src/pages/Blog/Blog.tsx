@@ -8,6 +8,7 @@ import * as DOMPurify from 'dompurify'
 const purify = (DOMPurify as any).default ?? DOMPurify
 import { Post } from '../../types'
 import { postService } from '../../services/api'
+import CommentSection from '../../components/CommentSection/CommentSection'
 
 // 配置 marked
 marked.setOptions({
@@ -459,6 +460,9 @@ const BlogDetail: React.FC = () => {
         className="prose prose-lg max-w-none"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
       />
+
+      {/* 评论区 */}
+      <CommentSection postId={post._id} />
 
       <div className="mt-12 pt-8 border-t border-gray-200">
         <Link

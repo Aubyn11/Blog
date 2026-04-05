@@ -144,3 +144,27 @@ D:/Blog/
 │   └── package.json
 └── package.json
 ```
+
+---
+
+## v1.3.0 — 2026-04-05（评论系统）
+
+### 新增文件
+- `backend/src/models/Comment.js` — MongoDB 评论模型
+- `backend/src/controllers/commentController.js` — MongoDB 评论控制器
+- `backend/src/controllers/githubCommentController.js` — GitHub 模式评论控制器
+- `backend/src/routes/comments.js` — MongoDB 评论路由
+- `backend/src/routes/githubComments.js` — GitHub 模式评论路由
+- `src/components/CommentSection/CommentSection.tsx` — 前端评论区组件
+
+### 功能特性
+- ✅ 游客评论（填写昵称即可）
+- ✅ 登录用户评论（显示用户名）
+- ✅ 二级回复（点击「回复」对评论进行回复）
+- ✅ 评论点赞（localStorage 防重复）
+- ✅ 删除评论（作者/管理员，软删除）
+- ✅ 折叠/展开回复
+- ✅ 相对时间显示
+- ✅ 骨架屏加载动画
+- ✅ 双存储模式（MongoDB + GitHub）均支持
+

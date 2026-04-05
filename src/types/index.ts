@@ -61,6 +61,34 @@ export interface CreatePostData {
   status: 'published' | 'draft'
 }
 
+// ========== 评论相关类型 ==========
+
+export interface CommentAuthor {
+  id: string
+  username: string
+  avatar?: string
+}
+
+export interface Comment {
+  id: string
+  postId: string
+  parentId: string | null
+  content: string
+  likes: number
+  createdAt: string
+  updatedAt: string
+  author: CommentAuthor | null
+  guestName: string | null
+  authorName: string
+  replies: Comment[]
+}
+
+export interface CreateCommentData {
+  content: string
+  parentId?: string
+  guestName?: string
+}
+
 export interface ApiResponse<T> {
   success: boolean
   data: T
