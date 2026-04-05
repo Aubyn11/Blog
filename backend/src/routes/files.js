@@ -8,6 +8,7 @@ import {
 } from '../controllers/fileController.js'
 import { protect } from '../middleware/auth.js'
 import { upload, handleUploadError } from '../middleware/upload.js'
+import { compressImage } from '../middleware/imageCompress.js'
 
 const router = express.Router()
 
@@ -19,8 +20,8 @@ const uploadValidation = [
     .withMessage('文件描述不能超过500个字符')
 ]
 
-// 路由定义
-router.post('/upload', protect, upload.single('file'), uploadValidation, uploadFile)
+// 路由定义（上传后自动压缩图片为 WebP）
+router.post('/upload', protect, upload.single('file'), compressImage, uploadValidation, uploadFile)
 router.get('/', protect, getFiles)
 router.get('/:id', protect, getFile)
 router.delete('/:id', protect, deleteFile)

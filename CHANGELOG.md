@@ -118,9 +118,59 @@
 
 ---
 
+## v1.4.0 — 2026-04-05（P2 功能增强）
+
+### ✅ 已完成
+
+**11. 文章目录 TOC（TableOfContents.tsx）**
+- 新增 `src/components/TOC/TableOfContents.tsx` 浮动目录组件
+- 自动解析文章 HTML 中的 h1~h4 标题，生成右侧浮动导航
+- 使用 `IntersectionObserver` 高亮当前阅读位置
+- 支持点击平滑滚动定位，可折叠/展开
+- 仅在 xl 宽度（≥1280px）桌面端显示
+
+**12. SEO 优化（useSEO.ts）**
+- 新增 `src/hooks/useSEO.ts` 自定义 Hook
+- 动态设置 `<title>`、`<meta description>`
+- 支持 Open Graph（og:title/description/image/type）
+- 支持 Twitter Card
+- 文章详情页自动注入作者、发布时间等 article 元数据
+- 自动维护 `<link rel="canonical">`
+
+**13. RSS 订阅（backend/src/routes/rss.js）**
+- 新增 `/api/rss` 端点，生成标准 RSS 2.0 Feed
+- 支持 MongoDB 和 GitHub 双存储模式
+- 包含文章标题、摘要、作者、标签、发布时间
+- 响应头设置 `Cache-Control: max-age=3600`（1小时缓存）
+- 博客列表页和管理后台均添加 RSS 订阅入口
+
+**14. 暗色模式（ThemeContext.tsx）**
+- 新增 `src/contexts/ThemeContext.tsx` 主题 Context
+- TailwindCSS 开启 `darkMode: 'class'` 模式
+- Header 添加太阳/月亮切换按钮
+- 主题偏好持久化到 `localStorage`，首次访问跟随系统偏好
+- `index.css` 全局组件（card/input/btn）添加 `dark:` 变体
+
+**15. 全文搜索增强（Blog.tsx）**
+- 搜索框添加 400ms 防抖，减少无效 API 请求
+- 搜索/标签切换时自动重置到第 1 页
+
+**16. 图片 CDN 优化（imageCompress.js）**
+- 新增 `backend/src/middleware/imageCompress.js` 压缩中间件
+- 安装 `sharp` 图片处理库
+- 上传图片自动转换为 WebP 格式（质量 80%）
+- 最大宽度限制 1920px，超出等比缩小，不放大小图
+- 压缩失败不阻断上传流程（降级处理）
+- 文件上传路由自动接入压缩中间件
+
+**17. 访问统计仪表盘（Dashboard.tsx）**
+- 统计卡片新增草稿数、近7天发文数
+- 新增「近7天阅读量分布」迷你柱状图（按文章发布日期统计）
+- 新增「阅读量 Top 5」文章排行榜（带进度条）
+- 仪表盘顶部添加 RSS 订阅快捷入口
+- 所有统计数据来自真实 API，不再使用模拟数据
 
 
-```
 D:/Blog/
 ├── src/                    # 前端 React + TypeScript
 │   ├── pages/

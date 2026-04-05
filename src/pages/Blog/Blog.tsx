@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams, useLocation } from 'react-router-dom'
-import { Calendar, User, Eye, Heart, Tag, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, User, Eye, Heart, Tag, Search, ChevronLeft, ChevronRight, Rss } from 'lucide-react'
 import { marked } from 'marked'
 import * as DOMPurify from 'dompurify'
 
@@ -9,6 +9,8 @@ const purify = (DOMPurify as any).default ?? DOMPurify
 import { Post } from '../../types'
 import { postService } from '../../services/api'
 import CommentSection from '../../components/CommentSection/CommentSection'
+import TableOfContents from '../../components/TOC/TableOfContents'
+import { useSEO } from '../../hooks/useSEO'
 
 // 配置 marked
 marked.setOptions({
@@ -35,12 +37,23 @@ const renderMarkdown = (content: string): string => {
 
 const POSTS_PER_PAGE = 9
 
+// 搜索防抖 Hook
+const useDebounce = <T,>(value: T, delay: number): T => {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
 const BlogList: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const debouncedSearch = useDebounce(search, 400)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [searchParams] = useSearchParams()
@@ -59,11 +72,14 @@ const BlogList: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, selectedTag])
+  }, [debouncedSearch, selectedTag])
 
   useEffect(() => {
     fetchPosts()
-  }, [search, selectedTag, currentPage])
+  }, [debouncedSearch, selectedTag, currentPage])
+
+  // SEO
+  useSEO({ title: '博客文章', description: '浏览所有博客文章，探索技术与生活' })
 
   const fetchPosts = async () => {
     try {
@@ -74,7 +90,7 @@ const BlogList: React.FC = () => {
       const response = await postService.getPosts({
         page: currentPage,
         limit: POSTS_PER_PAGE,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         tag: selectedTag || undefined,
         userId,
         sort,
@@ -116,7 +132,19 @@ const BlogList: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">博客文章</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">博客文章</h1>
+          <a
+            href="/api/rss"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-600 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+            title="RSS 订阅"
+          >
+            <Rss className="w-4 h-4" />
+            RSS
+          </a>
+        </div>
         
         {/* Search and Filter */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -319,6 +347,17 @@ const BlogDetail: React.FC = () => {
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [liking, setLiking] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // SEO
+  useSEO(post ? {
+    title: post.title,
+    description: post.excerpt || post.content?.slice(0, 150),
+    image: post.coverImage,
+    type: 'article',
+    author: post.author?.username,
+    publishedAt: post.createdAt,
+  } : {})
 
   useEffect(() => {
     if (id) {
@@ -457,9 +496,13 @@ const BlogDetail: React.FC = () => {
 
       {/* 安全渲染 Markdown 内容 */}
       <div
-        className="prose prose-lg max-w-none"
+        ref={contentRef}
+        className="prose prose-lg max-w-none dark:prose-invert"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
       />
+
+      {/* 文章目录（桌面端浮动） */}
+      <TableOfContents contentRef={contentRef} />
 
       {/* 评论区 */}
       <CommentSection postId={post._id} />

@@ -9,6 +9,7 @@ import Admin from './pages/Admin/Admin'
 import Auth from './pages/Auth/Auth'
 import PageView from './pages/PageView/PageView'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 // 全局错误边界，防止子组件崩溃导致整个应用白屏
 class ErrorBoundary extends React.Component<
@@ -55,8 +56,9 @@ class ErrorBoundary extends React.Component<
 function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <Router>
+      <ThemeProvider>
+        <AuthProvider>
+          <Router>
           <Routes>
             {/* 后台管理：独立布局，无公共 Header/Footer */}
             <Route path="/admin/*" element={<Admin />} />
@@ -85,6 +87,7 @@ function App() {
           <Toaster position="top-right" />
         </Router>
       </AuthProvider>
+    </ThemeProvider>
     </ErrorBoundary>
   )
 }
