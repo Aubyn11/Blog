@@ -1,14 +1,19 @@
 import GitHubStorage from '../services/githubStorage.js'
 import bcrypt from 'bcryptjs'
 
-const storage = new GitHubStorage()
+// 懒加载：在第一次使用时才实例化，确保dotenv已加载
+let _storage = null
+const getStorage = () => {
+  if (!_storage) _storage = new GitHubStorage()
+  return _storage
+}
 
 // 初始化管理员用户
 export const initAdminUser = async () => {
   try {
     console.log('🔧 检查管理员用户初始化...')
     
-    const users = await storage.getUsers()
+    const users = await getStorage().getUsers()
     
     // 检查是否已存在管理员用户
     const adminUser = users.find(user => user.role === 'admin')
@@ -21,7 +26,7 @@ export const initAdminUser = async () => {
     // 创建默认管理员用户
     const hashedPassword = await bcrypt.hash('admin123', 12)
     
-    const newAdmin = await storage.createUser({
+    const newAdmin = await getStorage().createUser({
       username: 'admin',
       email: 'admin@blog.com',
       password: hashedPassword,
@@ -49,10 +54,10 @@ export const initDefaultData = async () => {
     console.log('📊 初始化默认数据...')
     
     // 检查是否已存在文章
-    const posts = await storage.getPosts()
+    const posts = await getStorage().getPosts()
     if (posts.length === 0) {
       // 创建欢迎文章
-      const welcomePost = await storage.createPost({
+      const welcomePost = await getStorage().createPost({
         title: '欢迎使用个人博客系统',
         content: `# 欢迎使用个人博客系统
 
