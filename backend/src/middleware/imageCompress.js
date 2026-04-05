@@ -1,6 +1,19 @@
-import sharp from 'sharp'
 import path from 'path'
 import fs from 'fs'
+
+// 动态加载 sharp（原生模块，部分部署环境可能不支持）
+let sharpLib = null
+const loadSharp = async () => {
+  if (sharpLib) return sharpLib
+  try {
+    const mod = await import('sharp')
+    sharpLib = mod.default
+    return sharpLib
+  } catch {
+    console.warn('⚠️ sharp 模块不可用，图片压缩已禁用（上传功能不受影响）')
+    return null
+  }
+}
 
 /**
  * 图片压缩中间件
@@ -17,34 +30,34 @@ export const compressImage = async (req, res, next) => {
 
   if (!imageTypes.includes(mimetype)) return next()
 
+  const sharp = await loadSharp()
+  if (!sharp) return next() // sharp 不可用时跳过压缩
+
   try {
     const ext = path.extname(filename)
     const baseName = path.basename(filename, ext)
     const outputPath = path.join(path.dirname(filePath), `${baseName}.webp`)
 
     await sharp(filePath)
-      .resize({ width: 1920, withoutEnlargement: true }) // 最大宽度1920，不放大
+      .resize({ width: 1920, withoutEnlargement: true })
       .webp({ quality: 80 })
       .toFile(outputPath)
 
-    // 删除原文件（如果不是 webp）
     if (filePath !== outputPath) {
       fs.unlink(filePath, () => {})
     }
 
-    // 更新 req.file 信息
     req.file.path = outputPath
     req.file.filename = `${baseName}.webp`
     req.file.mimetype = 'image/webp'
 
-    // 获取压缩后文件大小
     const stat = fs.statSync(outputPath)
     req.file.size = stat.size
 
     next()
   } catch (err) {
     console.error('图片压缩失败，使用原文件:', err.message)
-    next() // 压缩失败不阻断上传流程
+    next()
   }
 }
 
@@ -55,6 +68,8 @@ export const compressImages = async (req, res, next) => {
   if (!req.files || req.files.length === 0) return next()
 
   const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  const sharp = await loadSharp()
+  if (!sharp) return next() // sharp 不可用时跳过压缩
 
   await Promise.all(
     req.files.map(async (file) => {
