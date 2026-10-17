@@ -33,7 +33,13 @@ export const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 401 }
   }
 
-  res.status(error.statusCode || 500).json({
+  // 优先用 error 上显式声明的，其次用链路上已设置的 res.statusCode
+  const statusCode =
+    err.statusCode ||
+    error.statusCode ||
+    (res.statusCode && res.statusCode !== 200 ? res.statusCode : 500)
+
+  res.status(statusCode).json({
     success: false,
     message: error.message || '服务器内部错误',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
