@@ -46,19 +46,34 @@ const allowedOrigins = [
     process.env.FRONTEND_URL_PROD,
 ].filter(Boolean)
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin) return callback(null, true)
-        if (allowedOrigins.includes(origin)) {
-            callback(null, true)
-        } else {
-            console.warn(`⚠️ CORS 拒绝来源: ${origin}`)
-            callback(new Error(`CORS policy: origin ${origin} not allowed`))
+// 同源白名单 + 显式白名单。
+// 为什么要判断同源：前端调的是相对路径 /api，部署后就是同源请求，
+// 而浏览器给 POST 请求也会带 Origin。如果只认 FRONTEND_URL，
+// 一旦变量没配或和实际域名差一个字，所有接口都会 500。
+app.use(cors((req, callback) => {
+    const origin = req.header('Origin')
+    let sameHost = false
+
+    if (origin) {
+        try {
+            sameHost = new URL(origin).host === req.headers.host
+        } catch {
+            sameHost = false
         }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    }
+
+    const allowed = !origin || allowedOrigins.includes(origin) || sameHost
+    if (!allowed) {
+        // 不抛错，只是不回 Access-Control-Allow-Origin，由浏览器拦（这才是标准 CORS 行为）
+        console.warn(`⚠️ CORS 拒绝来源: ${origin}`)
+    }
+
+    callback(null, {
+        origin: allowed,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization']
+    })
 }))
 
 // 解析请求体

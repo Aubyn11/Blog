@@ -131,8 +131,13 @@ git push origin master
 ### 坑 3：接口全被 CORS 拦
 
 控制台报 `CORS policy: origin ... not allowed`。
-**原因**：`FRONTEND_URL` 和实际域名不一致（多/少 `www`、`https` 写成 `http`、带尾斜杠都不行）。
-**处理**：改成完全一致的地址，再 Redeploy。
+
+**代码已经做过兼容**：同源请求（前端调自己域名的 `/api`）一律放行，`FRONTEND_URL` 没配也不会挂。
+它只在「前后端分开部署、域名不同」时才是必需的。
+
+如果仍然被拦：
+- 确认访问域名和 `FRONTEND_URL` 完全一致（多/少 `www`、`https` 写成 `http`、带尾斜杠都不行）
+- Vercel 预览域名每次不同，那种情况依赖上面的同源放行即可
 
 ### 坑 4：注册后登录不上 / 刷新就掉登录
 
