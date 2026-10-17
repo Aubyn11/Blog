@@ -174,7 +174,9 @@ export const postService = {
 }
 
 export const fileService = {
-  async uploadFile(file: File): Promise<File> {
+  // 注意：这里的 File 是 ../types 里的业务类型，和浏览器内置的 File 同名。
+  // 参数必须写成 Blob（DOM 类型），否则传浏览器 File 进去会类型不匹配。
+  async uploadFile(file: Blob): Promise<File> {
     const formData = new FormData()
     formData.append('file', file)
     
@@ -288,6 +290,62 @@ export const commentService = {
     const response = await api.post(`/posts/${postId}/comments/${commentId}/like`)
     return response.data.data
   }
+}
+
+// ==================== 上传（R2 直传） ====================
+export interface UploadTicket {
+  uploadUrl: string
+  key: string
+  publicUrl: string
+  expiresIn: number
+  contentType: string
+}
+
+export interface UploadConfig {
+  enabled: boolean
+  limits: Record<string, number>
+  allowedTypes: Record<string, string[]>
+}
+
+export const uploadService = {
+  /** 是否配置了对象存储；未配置时前端隐藏上传按钮 */
+  async getConfig(): Promise<UploadConfig> {
+    const response = await api.get('/uploads/config')
+    return response.data.data
+  },
+
+  /** 申请一个直传地址 */
+  async presign(payload: {
+    kind: 'video' | 'image'
+    filename: string
+    contentType: string
+    size: number
+  }): Promise<UploadTicket> {
+    const response = await api.post('/uploads/presign', payload)
+    return response.data.data
+  },
+
+  /**
+   * 直接 PUT 到 R2。
+   * 必须用裸 axios，不能用上面的 api 实例——那个会给 R2 带上 Authorization 头，签名就废了。
+   * Content-Type 也必须和签名时一致，否则 R2 返回 SignatureDoesNotMatch。
+   */
+  async uploadToR2(
+    ticket: UploadTicket,
+    file: Blob,
+    onProgress?: (percent: number) => void
+  ): Promise<string> {
+    await axios.put(ticket.uploadUrl, file, {
+      headers: { 'Content-Type': ticket.contentType },
+      timeout: 0, // 大文件不设超时
+      onUploadProgress: e => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      },
+    })
+    return ticket.publicUrl
+  },
 }
 
 export default api

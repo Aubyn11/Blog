@@ -13,6 +13,7 @@ import githubUserRoutes from './routes/githubUsers.js'
 import githubFileRoutes from './routes/githubFiles.js'
 import githubPageRoutes from './routes/githubPages.js'
 import homeConfigRoutes from './routes/homeConfig.js'
+import uploadRoutes from './routes/uploads.js'
 
 // 导入中间件
 import { errorHandler } from './middleware/errorHandler.js'
@@ -81,6 +82,9 @@ if (useGitHubStorage) {
     app.use('/api/files', fileRoutes)
     app.use('/api/auth', authRoutes)
 }
+
+// 上传（R2 预签名直传，与存储模式无关，始终挂载）
+app.use('/api/uploads', uploadRoutes)
 
 // 健康检查
 app.get('/api/health', async (req, res) => {

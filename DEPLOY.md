@@ -167,3 +167,91 @@ npm run build
 cd F:\Blog
 git status --short
 ```
+
+---
+
+## 七、视频上传（R2）—— 可选
+
+### 7.1 不配也能用
+
+视频块默认是「手动填 URL」。你先把视频传到 B站 / 网盘 / 任何能拿到直链的地方，把 mp4 地址粘进 `视频 URL` 就行。
+
+### 7.2 配了之后的效果
+
+后台「视频」组件的属性面板里会多一个 **上传视频** 按钮，选文件后显示进度条，传完自动填入地址。
+
+**为什么是浏览器直传**：Vercel Serverless Function 的请求体上限是 4.5MB，几十 MB 的视频传不进来。所以后端只签发一个 15 分钟有效的上传地址（预签名 URL），文件由浏览器直接 PUT 到 R2。Vercel 只承担一次几十 KB 的签名请求。
+
+### 7.3 开通步骤
+
+1. **装依赖**（必须先做，否则上传按钮报了「依赖未安装」）
+
+   ```powershell
+   cd F:\Blog
+   npm install
+   ```
+
+   新增了两个包：`@aws-sdk/client-s3`、`@aws-sdk/s3-request-presigner`。
+
+2. **建桶**：Cloudflare 控制台 → R2 → Create bucket → 名字 `blog-media`
+
+3. **开公开访问**：bucket → Settings → Public access → 绑定一个自定义域名（如 `media.你的域名.com`）
+   - 只是自己测试的话，可以先用 R2 提供的 `https://pub-xxxx.r2.dev`
+   - 正式用建议绑自定义域名，否则 r2.dev 有速率限制
+
+4. **建 API Token**：R2 → Manage R2 API Tokens → Create API token
+   - Permissions：`Object Read & Write`
+   - 限定到 `blog-media` 这一个桶
+   - 记下 **Access Key ID**、**Secret Access Key**、以及账户页的 **Account ID**
+
+5. **配 CORS**（bucket → Settings → CORS Policy）：
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://你的站点域名.vercel.app", "http://localhost:5173"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+6. **加 5 个环境变量**（Vercel → Settings → Environment Variables）：
+
+   | 变量名 | 值 |
+   |---|---|
+   | `R2_ACCOUNT_ID` | Cloudflare 账户 ID |
+   | `R2_ACCESS_KEY_ID` | 第 4 步的 Access Key ID |
+   | `R2_SECRET_ACCESS_KEY` | 第 4 步的 Secret Access Key |
+   | `R2_BUCKET` | `blog-media` |
+   | `R2_PUBLIC_BASE_URL` | `https://media.你的域名.com`（结尾不带斜杠） |
+
+   加完 **Redeploy**。
+
+### 7.4 怎么验证
+
+- [ ] 访问 `/api/uploads/config`，`enabled` 应该是 `true`
+- [ ] 后台新建页面 → 拖一个「视频」组件 → 点「上传视频」→ 选个 mp4
+- [ ] 进度条走完，预览能播放，视频 URL 自动填上
+- [ ] 打开那个 URL（形如 `https://media.你的域名.com/videos/2026/10/xxxx-a.mp4`）能直接播
+
+### 7.5 出问题看这里
+
+| 现象 | 原因 |
+|---|---|
+| 按钮是灰的，提示未配置 | 5 个环境变量没填全，或没 Redeploy |
+| 上传到 99% 失败 | CORS 的 `AllowedOrigins` 里没有你当前访问的域名 |
+| 报 `SignatureDoesNotMatch` | 浏览器 PUT 时的 Content-Type 和签发时不一致（代码已固定，一般是代理改了请求头） |
+| 报 `Request body too large` | 你在填 URL 而不是用上传按钮，走了后端转发 |
+| 上传成功但播放 404 | `R2_PUBLIC_BASE_URL` 写错，或桶没开公开访问 |
+
+### 7.6 上传限制（代码里写死的）
+
+| 类型 | 格式 | 单文件上限 |
+|---|---|---|
+| 视频 | mp4 / webm / mov | 200 MB |
+| 图片 | jpg / png / webp / gif | 10 MB |
+
+需要改的话在 `backend/src/services/r2Storage.js` 顶部的 `LIMITS` 和 `VIDEO_TYPES`。

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Type, Image, Square, Minus, Columns, Video, Code, Quote, List, Layout,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { PageComponent, ComponentType, CreatePageData, PageBackground, Page } from '../../types'
 import { pageService } from '../../services/api'
+import VideoUploadField from './VideoUploadField'
 import toast from 'react-hot-toast'
 
 // ==================== 组件配置 ====================
@@ -554,7 +555,14 @@ const PropsEditor: React.FC<{ comp: PageComponent; onChange: (props: Record<stri
         </>
       )
     case 'video':
-      return <>{renderField('视频URL', 'src', 'text')}{renderField('封面图URL', 'poster', 'text')}{sizeFields}</>
+      return (
+        <>
+          <VideoUploadField props={p} onChange={onChange} />
+          {renderField('视频 URL（mp4 / webm 直链，或点上面按钮上传）', 'src', 'text')}
+          {renderField('封面图 URL', 'poster', 'text')}
+          {sizeFields}
+        </>
+      )
     case 'code':
       return <>{renderField('代码内容', 'code', 'textarea')}{renderField('编程语言', 'language', 'select', ['javascript', 'typescript', 'python', 'java', 'go', 'rust', 'html', 'css', 'bash', 'json'])}{sizeFields}</>
     case 'quote':
